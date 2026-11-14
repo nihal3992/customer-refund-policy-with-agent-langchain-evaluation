@@ -1,7 +1,7 @@
 [project]
 name = "aiagente"
 version = "0.1.0"
-description = "A tool-driven refund assistant with a local web demo and trace-based LLM evaluation"
+description = "An inspectable, policy-driven AI refund platform with trace-based evaluation"
 readme = "README.md"
 authors = [
     { name = "nihal.mc", email = "nihal.mc@zohocorp.com" }
@@ -9,10 +9,16 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "deepeval>=4.3.1",
+    "fastapi>=0.116",
+    "itsdangerous>=2.2",
     "langchain>=1.4.6",
+    "langchain-core>=1.2",
     "langchain-openai>=1.7.2",
+    "langgraph>=1.0",
+    "openai>=2.0",
+    "pydantic>=2.11",
     "python-dotenv>=1.0.1",
-    "streamlit>=1.45",
+    "uvicorn[standard]>=0.35",
 ]
 
 [project.scripts]
@@ -20,12 +26,24 @@ aiagente = "agent.cli:main"
 aiagente-eval = "evaluation.eval_all:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.11"]
+dev = ["httpx>=0.28", "pytest>=8.3", "ruff>=0.11"]
 
 [tool.uv.build-backend]
 module-root = ""
-module-name = ["agent", "evaluation"]
-source-include = ["app.py", ".env.example", ".streamlit/**", "tests/**", ".github/**"]
+module-name = ["agent", "api", "evaluation"]
+source-include = [
+    "frontend/src/**",
+    "frontend/index.html",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/tsconfig*.json",
+    "frontend/vite.config.ts",
+    "frontend/eslint.config.js",
+    ".env.example",
+    "Dockerfile",
+    "tests/**",
+    ".github/**",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

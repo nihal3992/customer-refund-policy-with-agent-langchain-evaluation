@@ -6,6 +6,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 from agent.agent import build_agent
 from agent.policy import DEMO_DATE
+from agent.tools import build_tools
 
 
 class ScriptedModel(BaseChatModel):
@@ -69,3 +70,13 @@ def test_model_configuration_is_lazy_and_explicit(monkeypatch):
 
     with pytest.raises(ValueError, match="AGENT_MODEL"):
         build_model()
+
+
+def test_authenticated_tools_cannot_access_another_customer():
+    tools = build_tools(as_of=DEMO_DATE, authenticated_user_id="user126")
+    history = next(tool for tool in tools if tool.name == "get_user_order_history")
+    calculate = next(tool for tool in tools if tool.name == "calculate_right_refund_amount")
+    assert history.invoke({"user_id": "user123"}) == {"status": "user not found"}
+    assert calculate.invoke({"user_id": "user123", "item_name": [{"name": "book"}]}) == {
+        "status": "user not found"
+    }

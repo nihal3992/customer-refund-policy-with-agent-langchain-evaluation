@@ -24,6 +24,7 @@ class RefundQuote(BaseModel):
 def quote_refund(user_id: str, items: list[str], *, as_of: date) -> RefundQuote:
     if not items or any(not item.strip() for item in items):
         raise ValueError("Request at least one non-empty item name.")
+    items = [item.strip() for item in items]
     if user_id not in users_data:
         return RefundQuote(status="user not found", amount=0, items=[], as_of=as_of.isoformat())
     orders = users_data[user_id]

@@ -17,14 +17,19 @@ TOOL_NAMES = (
 )
 
 
-def build_tools(*, as_of: date | None = None) -> list[BaseTool]:
+def build_tools(
+    *, as_of: date | None = None, authenticated_user_id: str | None = None
+) -> list[BaseTool]:
     def today() -> date:
         return as_of if as_of is not None else date.today()
+
+    def allowed(user_id: str) -> bool:
+        return authenticated_user_id is None or user_id == authenticated_user_id
 
     @tool
     def get_user_order_history(user_id: str) -> dict:
         """Look up a customer's purchases by exact username."""
-        if user_id not in users_data:
+        if not allowed(user_id) or user_id not in users_data:
             logger.warning("Unknown customer: %s", user_id)
             return {"status": "user not found"}
         return users_data[user_id]
@@ -32,6 +37,8 @@ def build_tools(*, as_of: date | None = None) -> list[BaseTool]:
     @tool
     def calculate_right_refund_amount(user_id: str, item_name: list[PurchaseItem]) -> dict:
         """Calculate a refund for requested items, with eligibility and exclusion reasons."""
+        if not allowed(user_id):
+            return {"status": "user not found"}
         result = quote_refund(user_id, [item.name for item in item_name], as_of=today())
         if result.status != "success":
             logger.warning("Cannot calculate refund for unknown customer: %s", user_id)
@@ -42,6 +49,8 @@ def build_tools(*, as_of: date | None = None) -> list[BaseTool]:
         user_id: str, refund_amount: int, item_name: list[PurchaseItem]
     ) -> dict:
         """Simulate a ticket only if the amount matches eligible requested purchases."""
+        if not allowed(user_id):
+            return {"status": "user not found", "simulated": True}
         quote = quote_refund(user_id, [item.name for item in item_name], as_of=today())
         if quote.status != "success":
             logger.warning("Ticket rejected for unknown customer: %s", user_id)
