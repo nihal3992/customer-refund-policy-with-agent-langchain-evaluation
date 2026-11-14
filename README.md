@@ -1,66 +1,139 @@
 # Refund Lab · AIAgente
 
-**A tool-driven customer-support assistant with inspectable decisions and
-evaluation-first engineering.**
+**An inspectable, policy-driven refund platform that separates conversational AI from business authority.**
 
-Python 3.14+ · LangChain · LangGraph · Streamlit · DeepEval
+Refund Lab demonstrates how an AI support experience can remain useful without trusting a language model to calculate or approve money. A React workspace guides a synthetic customer through a refund request, a deterministic Python policy decides eligibility, and a FastAPI action boundary recalculates every amount before creating a simulated ticket.
 
-Refund Lab explores a practical question: **how do you build an AI assistant that
-does more than produce a convincing answer?** The agent looks up purchases,
-calculates policy-compliant refunds, and simulates ticket creation. A separate
-evaluation suite checks its actions as well as its answers.
+> **Portfolio demonstration:** all customers and purchases are synthetic, authentication is a public demo gateway, tickets are simulated, and no payment is processed.
 
-Start with the **no-key policy explorer**, then connect your own model for live
-chat. Everything runs locally after cloning.
+## Product experience
 
-> **Sandbox only.** Customers are synthetic, tickets are simulated, and no money
-> moves. Usernames are not authentication. This is a portfolio demonstration,
-> not a production refund or payment service.
+- Public product narrative explaining the trust boundary and evaluation strategy.
+- Signed demo login that scopes every browser request to one synthetic customer.
+- Interactive order selection with item-level eligibility and exclusion reasons.
+- Server-authoritative refund quotes and amount revalidation at ticket creation.
+- Optional LangGraph policy assistant with visible business-tool traces.
+- Seven fixed reference scenarios evaluated across seven DeepEval metrics.
+- Offline policy, API, graph, CLI, and frontend tests that require no model key.
 
-## What to explore
+Demo credentials:
 
-| Experience | What it demonstrates |
-|---|---|
-| Offline web explorer | Deterministic refund decisions, item-level exclusion reasons, editable reference dates |
-| Live agent chat | Tool calling, structured responses, per-conversation memory, visible tool arguments |
-| CLI | A packaged entry point for both the offline policy demo and live conversations |
-| Evaluation suite | Seven reference scenarios and seven execution/answer metrics |
-| Offline tests and CI | Policy boundaries, graph execution, UI behavior, runner wiring, and package checks without API keys |
-
-### Engineering decisions
-
-- **Policy outside the prompt.** Python enforces purchase ownership, the inclusive
-  30-day window, future-date rejection, and duplicate-item deduplication.
-- **Validate at the action boundary.** The simulated ticket tool recalculates the
-  eligible amount and rejects unknown users, nonpositive amounts, and mismatched
-  totals instead of trusting an LLM-supplied number.
-- **Inspect the process and the outcome.** Trace metrics evaluate execution;
-  test-case metrics evaluate answers and tool calls.
-- **Separate deterministic and live experiences.** The offline explorer is
-  explicitly not a chatbot and does not pretend to demonstrate model quality.
-- **No import-time model requests.** Models and graph state are created explicitly;
-  importing the packages does not start a conversation or evaluation.
-- **Reproducible reference scenarios.** Evaluations use October 22, 2026, regardless
-  of today's date, so the sample purchases do not silently age out.
-
-## Quick start: no API key
-
-Requirements: [uv](https://docs.astral.sh/uv/) and Python 3.14 or newer.
-Run these commands from the cloned repository root:
-
-```bash
-uv sync --locked --group dev
-uv run streamlit run app.py
+```text
+Username: user126
+Password: refund-demo
 ```
 
-Open **http://localhost:8501**. The app binds to loopback for local use.
+The password is intentionally public. The demo still uses a signed, HTTP-only session cookie to model a responsible browser/server boundary; it is not a production identity system.
 
-In **Policy explorer**, the defaults request `backpack, water_bottle` for
-`user126` on `2026-10-22`. The eligible amount is **$45**: the backpack qualifies,
-and the water bottle is outside the refund window. Try `folder` for `user129`
-to see a future-dated purchase rejected.
+## Why the system is designed this way
 
-Prefer a terminal?
+The model can interpret a request, choose tools, and explain an outcome. It cannot change the refund window, invent ownership, or authorize an arbitrary amount.
+
+```mermaid
+flowchart LR
+    A[React workspace] -->|signed session| B[FastAPI]
+    B --> C[Deterministic policy]
+    B --> D[LangGraph assistant]
+    D --> E[Customer-scoped tools]
+    E --> C
+    C --> F{0–30 days and owned?}
+    F -->|yes| G[Eligible amount]
+    F -->|no| H[Item-level reason]
+    G --> I[Ticket endpoint recalculates]
+    I --> J[Simulated ticket]
+```
+
+Core safeguards:
+
+1. The authenticated customer comes from the signed session, never from a browser-supplied user ID.
+2. Purchase ownership, future dates, the inclusive 30-day window, and duplicate items are handled in Python.
+3. Web-agent tools reject attempts to access a different synthetic customer.
+4. Ticket creation recalculates the quote and rejects a stale or modified amount.
+5. Model failures affect the optional assistant—not the deterministic refund workflow.
+
+## Technology
+
+| Layer | Stack |
+|---|---|
+| Product UI | React 19, TypeScript, Vite, React Router |
+| API and sessions | FastAPI, Pydantic, ItsDangerous |
+| Agent | LangChain, LangGraph, structured output |
+| Policy | Deterministic Python and synthetic purchase fixtures |
+| Evaluation | DeepEval trace and test-case metrics |
+| Quality | Pytest, Ruff, Vitest, Testing Library, GitHub Actions |
+| Delivery | Single-container frontend build and FastAPI runtime |
+
+Python 3.14 or newer and Node.js 22 are used by the project.
+
+## Run locally
+
+Requirements: [uv](https://docs.astral.sh/uv/), Python 3.14+, and Node.js 22+.
+
+```bash
+git clone <your-repository-url>
+cd AIAgente
+cp .env.example .env
+uv sync --locked --group dev
+cd frontend && npm install && cd ..
+```
+
+Start the API:
+
+```bash
+uv run uvicorn api.app:app --reload
+```
+
+In a second terminal, start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). Vite proxies `/api` requests to FastAPI on port 8000.
+
+The deterministic refund experience works without model credentials. To use the assistant panel, configure a tool-capable model in `.env`:
+
+```dotenv
+AGENT_MODEL=gpt-4.1-mini
+AGENT_MODEL_PROVIDER=openai
+OPENAI_API_KEY=your_key_here
+
+SESSION_SECRET=replace-with-a-long-random-value
+SESSION_COOKIE_SECURE=false
+APP_ENV=development
+```
+
+Model identifiers are examples and depend on provider/account availability. Live assistant and evaluation calls can incur API charges and send synthetic prompts to the configured provider.
+
+## Run with Docker
+
+The production image builds the frontend and serves it from FastAPI as one application:
+
+```bash
+docker build -t refund-lab .
+docker run --rm -p 8000:8000 \
+  -e SESSION_SECRET="$(openssl rand -hex 32)" \
+  refund-lab
+```
+
+Open [http://localhost:8000](http://localhost:8000). Production deployments must provide `SESSION_SECRET` and set `SESSION_COOKIE_SECURE=true` when serving the application over HTTPS.
+
+## Deterministic policy
+
+The reference date is fixed to **October 22, 2026** for repeatable demonstrations and evaluations.
+
+| Rule | Behavior |
+|---|---|
+| Purchase age 0–30 days | Eligible, including day 30 |
+| Purchase older than 30 days | Excluded as outside the window |
+| Future-dated purchase | Excluded rather than producing a negative age refund |
+| Item not owned | Excluded as not purchased |
+| Duplicate item name | Evaluated once |
+| Empty item | Rejected before evaluation |
+| Modified ticket amount | Rejected and returned with the expected amount |
+
+The packaged CLI exposes the same policy without the web application:
 
 ```bash
 uv run aiagente --demo
@@ -68,252 +141,66 @@ uv run aiagente --demo --user user123 --items book pen
 uv run aiagente --demo --user user129 --items folder --date 2026-10-22
 ```
 
-The CLI demo prints the policy quote as JSON. It does not call an LLM or issue
-a ticket.
+## Agent and evaluation
 
-## Connect your own model
+The optional assistant uses four inspectable tools:
 
-You are not required to use one particular model. Choose a LangChain-compatible
-chat model that supports **tool calling and structured output**. Small local
-models and some hosted models may not support both reliably.
+1. `get_user_order_history`
+2. `get_today_date`
+3. `calculate_right_refund_amount`
+4. `issue_refund_ticket`
 
-1. Copy the configuration template:
+The browser-created agent is scoped to the authenticated demo customer. CLI and evaluation agents remain explicit sandbox interfaces that can exercise any synthetic fixture.
 
-   ```bash
-   cp .env.example .env
-   ```
+DeepEval assesses more than answer wording:
 
-2. Set the agent model, provider, and provider-specific credentials. For example,
-   with the already installed OpenAI integration:
-
-   ```dotenv
-   AGENT_MODEL=gpt-4.1-mini
-   AGENT_MODEL_PROVIDER=openai
-   OPENAI_API_KEY=your_key_here
-   EVAL_MODEL=gpt-4.1-mini
-   ```
-
-   This is an example, not a required model or a guarantee of account access.
-   Use a model identifier available to your account.
-
-3. For a different provider, install its LangChain integration and follow that
-   provider's authentication instructions. For example:
-
-   ```bash
-   uv add langchain-anthropic
-   ```
-
-   Then set `AGENT_MODEL_PROVIDER=anthropic`, a supported `AGENT_MODEL` identifier,
-   and `ANTHROPIC_API_KEY`. Other providers follow the same pattern; additional
-   endpoint or model-specific settings may require updating
-   [build_model](agent/models.py).
-
-4. Restart the app and select **Live agent chat**, or start the CLI:
-
-   ```bash
-   uv run aiagente --date 2026-10-22
-   ```
-
-   Example message: `I am user126. Please refund my backpack and water_bottle.`
-
-The web chat defaults to the fixed demo date. Turn off that option to use the
-system date; the live CLI uses the system date unless `--date` is supplied.
-Changing the web reference-date mode starts a new conversation.
-
-### Agent model vs. evaluator model
-
-`AGENT_MODEL` controls the assistant; `EVAL_MODEL` controls the DeepEval judge.
-They are separate integrations. Setting the agent provider does **not** configure
-DeepEval's judge provider automatically.
-
-The default evaluator factory passes `EVAL_MODEL` to DeepEval. For a non-default
-judge backend, configure a supported
-[DeepEval model integration](https://deepeval.com/docs/metrics-introduction), or
-adapt [evaluation/model.py](evaluation/model.py) to return a
-`DeepEvalBaseLLM` implementation. Check structured-output support and provider
-credentials for the judge independently.
-
-**Privacy and cost:** live chat and evaluations send messages, synthetic purchase
-data, and evaluation prompts to your configured providers and may incur API
-charges. Keep API keys in your local `.env`; never put real customer data or
-credentials into prompts or reference scenarios.
-
-## Workflow
-
-### Agent and policy flow
-
-```mermaid
-flowchart TD
-    A["Web chat or CLI message"] --> B["LangChain agent + system prompt"]
-    B --> C{"Username provided?"}
-    C -->|No| D["Ask for username"]
-    D --> A
-    C -->|Yes| E["get_user_order_history"]
-    E --> F{"Valid customer?"}
-    F -->|No| G["Ask for a valid username"]
-    G --> A
-    F -->|Yes| H{"Refund requested?"}
-    H -->|No| I["Answer purchase-history question"]
-    H -->|Yes| J["get_today_date"]
-    J --> K["calculate_right_refund_amount"]
-    K --> P["Python policy: owned, requested, 0-30 days, deduplicated"]
-    P --> L{"Positive eligible amount?"}
-    L -->|No| M["Explain exclusions; no ticket"]
-    L -->|Yes| N["issue_refund_ticket revalidates amount"]
-    N --> O["Simulated ticket result"]
-    I --> Q["Structured Answer"]
-    M --> Q
-    O --> Q
-```
-
-The graph illustrates the intended workflow, not a hard-coded order of model
-decisions. Policy rules and ticket-amount validation are enforced in Python;
-tool selection remains the model's responsibility.
-
-`InMemorySaver` stores conversation state in process memory. A unique `thread_id`
-isolates each conversation and each evaluation example. Restarting the process
-loses this state.
-
-Responses use the Pydantic `Answer` schema:
-
-```python
-Answer(
-    answer="A simulated refund ticket for $23 has been issued.",
-    conversation=False,
-)
-```
-
-The `conversation` flag indicates whether the assistant needs more information.
-The CLI lets the user continue asking questions until `/exit`.
-
-## Evaluation
-
-### Two stages, seven metrics
-
-```mermaid
-flowchart TD
-    A["Seven Golden reference examples"] --> B["evals_iterator with trace metrics"]
-    B --> C["Agent invocation with isolated thread_id"]
-    C --> D["CallbackHandler inside config records execution"]
-    D --> E["Four trace metrics"]
-    C --> F["Collect answer + business tool calls"]
-    F --> G["Build LLMTestCase with references"]
-    G --> H["evaluate with test-case metrics"]
-    H --> I["Three test-case metrics"]
-    E --> J["Scores and reasons in evaluation reports"]
-    I --> J
-```
-
-| Stage | Metric | Question |
-|---|---|---|
-| Trace | Task Completion | Did the agent complete the request under the refund policy? |
-| Trace | Step Efficiency | Were the execution steps useful rather than redundant? |
-| Trace | Plan Quality | Was the planning evidenced by the trace appropriate? |
-| Trace | Plan Adherence | Did execution follow the planning evidenced by the trace? |
-| Test case | Argument Correctness | Were the tool arguments appropriate for the request? |
-| Test case | Tool Correctness | Did the business tool calls match the expected ordered sequence? |
-| Test case | G-Eval: Answer Correctness | Did the actual answer reach the same conclusion as the reference? |
-
-All metrics use a **0.8 threshold**. Tool correctness considers ordering; the
-dataset supplies tool-name references rather than full argument-level expected
-values. Argument correctness judges actual arguments separately. Internal
-structured-response tool calls are excluded from business-tool comparisons.
-
-G-Eval checks semantic correctness, not exact wording. A relevant answer can
-still be wrong about an amount or ticket status. Planning scores depend on what
-is observable in the trace; this project does not implement a separate explicit
-planner.
-
-### Reference scenarios
-
-| Scenario | Expected outcome on 2026-10-22 |
+| Stage | Metrics |
 |---|---|
-| User123: book and pen | Simulated ticket for $30 |
-| User123: book only | Simulated ticket for $23 |
-| User123: purchase history, explicitly no refund | List purchases without a ticket |
-| Unknown user999 | Request a valid username |
-| User126: expired water bottle | Deny refund |
-| User126: backpack and expired water bottle | Simulated ticket for backpack only, $45 |
-| User123: sneakers not purchased | Deny refund |
+| Trace | Task completion, step efficiency, plan quality, plan adherence |
+| Test case | Argument correctness, ordered tool correctness, answer correctness |
 
-### Run live evaluations
+All metrics use a `0.8` threshold. Seven goldens cover full refunds, partial refunds, exclusions, unknown customers, purchase-history questions, and non-owned items. Every scenario receives an isolated conversation and uses the fixed reference date.
 
-Configure both agent and judge credentials first:
+Configure `EVAL_MODEL` separately from `AGENT_MODEL`, then run:
 
 ```bash
 uv run aiagente-eval
 uv run aiagente-eval --metric answer_correctness
-uv run python -m evaluation.task_completion
 ```
 
-All individual metric modules delegate to the shared runner. Prefer the installed
-command or `python -m evaluation.<module>` over executing package files by path.
+No live-model score is claimed in this repository: judge results vary by model and run. Offline tests validate policy and integration wiring, not model quality.
 
-The combined run produces separate trace and test-case reports, with fresh
-conversations for every scenario. Cache reads/writes and the post-run inspection
-prompt are disabled. API/provider errors are not converted into passing results.
-
-**Result transparency:** offline tests validate implementation and wiring; they
-do not benchmark a live LLM. No live-model accuracy or seven-metric pass rate is
-claimed here. Run the evaluation with your chosen models before publishing
-benchmark results. Judge scores can vary across models and runs.
-
-## Development and CI
+## Quality checks
 
 ```bash
-uv run pytest -q
 uv run ruff check .
 uv run ruff format --check .
-uv build
+uv run pytest -q
+
+cd frontend
+npm run lint
+npm test
+npm run build
 ```
 
-The [GitHub Actions workflow](.github/workflows/ci.yml) runs these offline checks
-on pushes and pull requests, plus the CLI demo. No provider secrets are needed
-in CI.
+GitHub Actions runs the Python suite, offline CLI demonstration, frontend checks, production frontend build, and Python package build on pushes and pull requests.
 
-Coverage includes inclusive 30-day boundaries, future purchases, unknown users,
-unowned/expired items, duplicate requests, ticket-amount mismatches, real graph
-execution using a scripted model, isolated threads, evaluation callback wiring,
-and Streamlit UI interactions.
-
-### Project layout
+## Repository map
 
 ```text
-app.py                    Streamlit policy explorer and live chat
-agent/
-  agent.py                Agent factory and in-memory checkpointer
-  cli.py                  Installed CLI entry point
-  policy.py               Deterministic refund rules
-  tools.py                LangChain tool definitions and ticket validation
-  models.py               Lazy model configuration
-  objects.py              Structured input/output schemas
-  data.py                 Synthetic purchases
-  prompts.py              Assistant instructions
-evaluation/
-  dataset.py              Seven Golden examples
-  eval_all.py             Shared metric construction and evaluation runner
-  model.py                Judge configuration
-  <metric>.py             Individual metric entry points
-tests/                    Offline policy, graph, evaluation, and UI tests
-.github/workflows/ci.yml   Automated checks
+agent/       deterministic policy, customer tools, model and graph factory
+api/         signed demo sessions, refund endpoints, agent endpoint, static delivery
+frontend/    React product experience and component tests
+evaluation/  goldens, trace metrics, answer/tool metrics, shared runner
+tests/       offline policy, graph, CLI, API, and evaluation tests
 ```
 
-## Scope and next steps
+## Deliberate limitations
 
-- **No authentication, payments, or persistent ticket store.** A repeated valid
-  request can produce another simulated success. Real integrations would need
-  authenticated identity, transaction tracking, idempotency, and authorization.
-- **No deployment claim.** The app is intended for local use, not public exposure.
-- **Finite synthetic dataset.** Prices are integer demo dollars, not a complete
-  currency or order-line model. There are no quantities, taxes, or shipping rules.
-- **Model support varies.** A provider integration alone does not guarantee tool
-  calling, structured responses, or comparable evaluation quality.
-- **Future extensions:** multi-turn evaluation scenarios, explicit planning,
-  durable state, authenticated customer lookup, and approved payment integrations.
+- Demo accounts are seeded and have no registration, recovery, or durable identity store.
+- Tickets and conversations are held in process memory and disappear on restart.
+- Purchase data is fixture data, not a database or commerce integration.
+- Ticket creation demonstrates validation but does not contact a support or payment system.
+- Horizontal scaling would require shared conversation/session persistence.
 
-### Portfolio summary
-
-> Built a local, tool-driven refund assistant with a Streamlit demo, deterministic
-> business-policy enforcement, structured LangChain responses, isolated LangGraph
-> conversations, and a seven-metric DeepEval workflow. Added offline regression
-> tests and CI so reviewers can explore the core behavior without API credentials.
+These boundaries keep the portfolio honest: Refund Lab demonstrates policy-safe orchestration, inspectability, and evaluation—not production payment processing.

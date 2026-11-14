@@ -15,3 +15,11 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 .streamlit/secrets.toml
+
+# Frontend-generated files
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
